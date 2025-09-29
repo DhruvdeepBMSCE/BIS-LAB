@@ -1,0 +1,89 @@
+import numpy as np
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score
+
+# ---------------------------
+# Fitness Function
+# ---------------------------
+def fitness_function(features, X_train, X_test, y_train, y_test):
+    # If no features selected → very bad fitness
+    if np.sum(features) == 0:
+        return 1e9  
+
+    # Select features
+    X_train_sel = X_train[:, features == 1]
+    X_test_sel = X_test[:, features == 1]
+
+    # Train & evaluate classifier
+    clf = DecisionTreeClassifier()
+    clf.fit(X_train_sel, y_train)
+    y_pred = clf.predict(X_test_sel)
+    acc = accuracy_score(y_test, y_pred)
+
+    # Fitness: lower is better
+    return (1 - acc) + (np.sum(features) / len(features))
+
+# ---------------------------
+# Grey Wolf Optimization
+# ---------------------------
+def GWO(num_wolves, max_iter, num_features, X_train, X_test, y_train, y_test):
+    # Initialize wolves randomly (binary vectors)
+    wolves = np.random.randint(0, 2, (num_wolves, num_features))
+
+    # Evaluate fitness
+    fitness = np.array([fitness_function(w, X_train, X_test, y_train, y_test) for w in wolves])
+
+    # Identify alpha, beta, delta
+    sorted_idx = np.argsort(fitness)
+    alpha, beta, delta = wolves[sorted_idx[:3]]
+
+    for t in range(max_iter):
+        a = 2 - 2 * (t / max_iter)  # Decreasing from 2 to 0
+
+        for i in range(num_wolves):
+            if np.array_equal(wolves[i], alpha) or np.array_equal(wolves[i], beta) or np.array_equal(wolves[i], delta):
+                continue
+
+            # Position update based on alpha, beta, delta
+            for j in range(num_features):
+                r1, r2 = np.random.rand(), np.random.rand()
+                A1, C1 = 2*a*r1 - a, 2*r2
+                D_alpha = abs(C1 * alpha[j] - wolves[i][j])
+                X1 = alpha[j] - A1 * D_alpha
+
+                r1, r2 = np.random.rand(), np.random.rand()
+                A2, C2 = 2*a*r1 - a, 2*r2
+                D_beta = abs(C2 * beta[j] - wolves[i][j])
+                X2 = beta[j] - A2 * D_beta
+
+                r1, r2 = np.random.rand(), np.random.rand()
+                A3, C3 = 2*a*r1 - a, 2*r2
+                D_delta = abs(C3 * delta[j] - wolves[i][j])
+                X3 = delta[j] - A3 * D_delta
+
+                wolves[i][j] = 1 if ((X1 + X2 + X3) / 3) > 0.5 else 0
+
+        # Re-evaluate fitness
+        fitness = np.array([fitness_function(w, X_train, X_test, y_train, y_test) for w in wolves])
+        sorted_idx = np.argsort(fitness)
+        alpha, beta, delta = wolves[sorted_idx[:3]]
+
+    return alpha
+
+# ---------------------------
+# Run Example
+# ---------------------------
+if __name__ == "__main__":
+    # Load dataset
+    data = load_breast_cancer()
+    X_train, X_test, y_train, y_test = train_test_split(
+        data.data, data.target, test_size=0.3, random_state=42
+    )
+
+    # Run GWO
+    best_features = GWO(num_wolves=10, max_iter=20, num_features=X_train.shape[1],
+                        X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test)
+
+    print("Selected features:", np.where(best_features == 1)[0])
