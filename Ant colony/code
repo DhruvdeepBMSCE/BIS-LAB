@@ -1,0 +1,94 @@
+import numpy as np
+
+# Distance between cities
+def distance(city1, city2):
+    return np.linalg.norm(np.array(city1) - np.array(city2))
+
+# Initialize pheromone levels
+def initialize_pheromones(num_cities, initial_pheromone):
+    return np.full((num_cities, num_cities), initial_pheromone)
+
+# Choose next city based on pheromone and heuristic info
+def choose_next_city(current_city, unvisited, pheromone, distances, alpha, beta):
+    pheromone_vals = pheromone[current_city, unvisited] ** alpha
+    heuristic_vals = (1 / distances[current_city, unvisited]) ** beta
+    probs = pheromone_vals * heuristic_vals
+    probs /= probs.sum()
+    return np.random.choice(unvisited, p=probs)
+
+# Compute total length of a tour
+def tour_length(tour, distances):
+    length = 0
+    for i in range(len(tour) - 1):
+        length += distances[tour[i], tour[i+1]]
+    length += distances[tour[-1], tour[0]]  # return to start
+    return length
+
+# Main ACO function
+def ant_colony_optimization(cities, num_ants=10, num_iterations=100, alpha=1, beta=5, evaporation=0.5, Q=100):
+    num_cities = len(cities)
+    distances = np.zeros((num_cities, num_cities))
+    for i in range(num_cities):
+        for j in range(num_cities):
+            distances[i][j] = distance(cities[i], cities[j])
+
+    pheromone = initialize_pheromones(num_cities, initial_pheromone=1.0)
+
+    best_tour = None
+    best_length = float('inf')
+
+    for iteration in range(num_iterations):
+        all_tours = []
+        all_lengths = []
+
+        for ant in range(num_ants):
+            tour = []
+            unvisited = list(range(num_cities))
+            current_city = np.random.choice(unvisited)
+            tour.append(current_city)
+            unvisited.remove(current_city)
+
+            while unvisited:
+                next_city = choose_next_city(current_city, unvisited, pheromone, distances, alpha, beta)
+                tour.append(next_city)
+                unvisited.remove(next_city)
+                current_city = next_city
+
+            length = tour_length(tour, distances)
+            all_tours.append(tour)
+            all_lengths.append(length)
+
+            if length < best_length:
+                best_length = length
+                best_tour = tour
+
+        # Evaporate pheromone
+        pheromone *= (1 - evaporation)
+
+        # Deposit pheromone proportional to quality
+        for tour, length in zip(all_tours, all_lengths):
+            deposit_amount = Q / length
+            for i in range(num_cities - 1):
+                a, b = tour[i], tour[i+1]
+                pheromone[a][b] += deposit_amount
+                pheromone[b][a] += deposit_amount
+            # Add pheromone for return edge
+            a, b = tour[-1], tour[0]
+            pheromone[a][b] += deposit_amount
+            pheromone[b][a] += deposit_amount
+
+        if iteration % 10 == 0 or iteration == num_iterations - 1:
+            print(f"Iteration {iteration+1}, best length: {best_length:.2f}")
+
+    return best_tour, best_length
+
+# Example usage:
+
+cities = [
+    (0, 0), (1, 5), (5, 2), (6, 6), (8, 3)
+]
+
+best_tour, best_length = ant_colony_optimization(cities)
+
+print("Best tour:", best_tour)
+print("Best length:", best_length)
