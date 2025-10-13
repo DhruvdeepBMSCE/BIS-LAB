@@ -1,0 +1,60 @@
+import numpy as np
+
+def objective_function(x):
+    # Sphere function (min at 0)
+    return np.sum(x**2)
+
+def levy_flight(Lambda, dim):
+    sigma = (np.math.gamma(1 + Lambda) * np.sin(np.pi * Lambda / 2) /
+             (np.math.gamma((1 + Lambda) / 2) * Lambda * 2 ** ((Lambda - 1) / 2))) ** (1 / Lambda)
+    u = np.random.randn(dim) * sigma
+    v = np.random.randn(dim)
+    step = u / (np.abs(v) ** (1 / Lambda))
+    return step
+
+def simple_cuckoo_search(obj_func, dim, n_nests=25, n_iter=100, pa=0.25):
+    # Initialize nests randomly
+    nests = np.random.uniform(-10, 10, (n_nests, dim))
+    fitness = np.array([obj_func(nest) for nest in nests])
+
+    best_idx = np.argmin(fitness)
+    best_nest = nests[best_idx].copy()
+    best_fitness = fitness[best_idx]
+
+    Lambda = 1.5  # Levy exponent
+
+    for t in range(n_iter):
+        # Generate new solutions via Levy flights
+        new_nests = nests + 0.01 * levy_flight(Lambda, dim)
+
+        # Evaluate new solutions
+        new_fitness = np.array([obj_func(n) for n in new_nests])
+
+        # Replace nests if new solutions are better
+        improved = new_fitness < fitness
+        nests[improved] = new_nests[improved]
+        fitness[improved] = new_fitness[improved]
+
+        # Abandon a fraction pa of worse nests and replace with new random ones
+        num_abandon = int(pa * n_nests)
+        worst_indices = np.argsort(fitness)[-num_abandon:]
+        nests[worst_indices] = np.random.uniform(-10, 10, (num_abandon, dim))
+        fitness[worst_indices] = np.array([obj_func(n) for n in nests[worst_indices]])
+
+        # Update the best nest
+        current_best_idx = np.argmin(fitness)
+        if fitness[current_best_idx] < best_fitness:
+            best_fitness = fitness[current_best_idx]
+            best_nest = nests[current_best_idx].copy()
+
+        if (t + 1) % 10 == 0 or t == n_iter - 1:
+            print(f"Iteration {t+1}: Best fitness = {best_fitness:.6f}")
+
+    return best_nest, best_fitness
+
+# Example usage:
+dim = 5  # number of variables
+best_solution, best_value = simple_cuckoo_search(objective_function, dim)
+
+print("Best solution:", best_solution)
+print("Best objective value:", best_value)
