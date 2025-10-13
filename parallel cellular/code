@@ -1,0 +1,63 @@
+import numpy as np
+
+# Parameters
+L = 30            # Road length
+Vmax = 5
+p_slow = 0.3
+timesteps = 10
+num_cars = 5
+
+# Initialize road: -1 for empty, else speed of car
+road = -1 * np.ones(L, dtype=int)
+car_positions = np.random.choice(L, num_cars, replace=False)
+road[car_positions] = 0
+
+def update_road(road):
+    new_road = -1 * np.ones_like(road)
+    L = len(road)
+    
+    for i in range(L):
+        if road[i] != -1:  # There's a car here
+            v = road[i]
+            
+            # Calculate gap to next car
+            distance = 1
+            while distance <= Vmax:
+                check_pos = (i + distance) % L
+                if road[check_pos] != -1:
+                    break
+                distance += 1
+            gap = distance - 1
+
+            # Step 1: Acceleration
+            v = min(v + 1, Vmax)
+
+            # Step 2: Slowing down due to cars
+            v = min(v, gap)
+
+            # Step 3: Random slow down
+            if v > 0 and np.random.random() < p_slow:
+                v -= 1
+
+            # Step 4: Move car
+            new_pos = (i + v) % L
+
+            # Check for collisions (should not happen if rules are correct)
+            if new_road[new_pos] == -1:
+                new_road[new_pos] = v
+            else:
+                # If collision, keep old position (very unlikely)
+                new_road[i] = v
+
+    return new_road
+
+def print_road(road):
+    print("".join(['1' if x != -1 else '0' for x in road]))
+
+print("Initial state:")
+print_road(road)
+
+for t in range(timesteps):
+    road = update_road(road)
+    print(f"Step {t + 1}:")
+    print_road(road)
